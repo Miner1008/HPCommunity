@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<!-- 
+Template Name: Savehyip
+Version: 1.0.0
+Author: Webstrot
+
+-->
+<!--[if IE 8]> <html lang="en" class="ie8 no-js"> <![endif]-->
+<!--[if IE 9]> <html lang="en" class="ie9 no-js"> <![endif]-->
+<!--[if !IE]><!-->
+<html lang="zxx">
+<!--[endif]-->
+
+<head>
+    <meta charset="utf-8" />
+    <title>HP Community</title>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <meta name="description" content="Savehyip" />
+    <meta name="keywords" content="Savehyip" />
+    <meta name="author" content="" />
+    <meta name="MobileOptimized" content="320" />
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.3.4/web3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tronweb@3.2.3/dist/TronWeb.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.2/jquery.min.js"></script>
+    
+    <!--Template style -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.3.1/css/flag-icon.min.css" rel="stylesheet"/>
+
+    <link rel="stylesheet" type="text/css" href="css/animate.css" />
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css" />
+    <link rel="stylesheet" type="text/css" href="css/fonts.css" />
+    <link rel="stylesheet" type="text/css" href="css/flaticon.css" />
+    <link rel="stylesheet" type="text/css" href="css/font-awesome.css" />
+    <link rel="stylesheet" type="text/css" href="css/owl.carousel.css">
+    <link rel="stylesheet" type="text/css" href="css/owl.theme.default.css">
+	<link rel="stylesheet" type="text/css" href="css/nice-select.css" />
+    <link rel="stylesheet" type="text/css" href="css/datatables.css" />
+	<link rel="stylesheet" type="text/css" href="css/dropify.min.css" />
+    <link rel="stylesheet" type="text/css" href="css/reset.css" />
+    <link rel="stylesheet" type="text/css" href="css/magnific-popup.css">
+    <link rel="stylesheet" type="text/css" href="css/style.css" />
+    <link rel="stylesheet" type="text/css" href="css/responsive.css" />
+    <!--favicon-->
+    <link rel="shortcut icon" type="image/png" href="images/favicon.png" />
+</head>
+
+<script>
+      alertshowed = 0;
+      contractAddress = 'TLgzJvHDArCZLCsgJo4XsEaBT8Te1af8n2';
+      //contractAddress = 'THQWuuqxipcZ7CUv3BMyR7aHFAjqDGBkCa';
+      contractBalance = 0;
+      upline = '';
+      contractObj = null;
+
+      contract = {
+        balance: 0,
+        total_users: 0,
+        total_deposited: 0,
+        total_withdraw: 0,
+        pool_balance: 0,
+        pool_last_draw: 0,
+        pool_lider: 0,
+      };
+
+      user = {
+        address: '',
+        balance: 0,
+        payout: 0,
+        upline: '',
+        referrals: 0,
+        payouts: 0,
+        direct_bonus: 0,
+        pool_bonus: 0,
+        match_bonus: 0,
+        deposit_amount: 0,
+        deposit_time: 0,
+        total_deposits: 0,
+        total_payouts: 0,
+        total_structure: 0,
+      };
+
+      tron = {
+        tronWeb: false,
+        auth: false,
+        account: '',
+      };
+
+      timestamp = '';
+      rates = {};
+      pool_top = [];
+      simpleContractAddress = '';
+      simpleAddress = '';
+      simpleUpline = '---';
+      amount = 0;
+
+
+	//TronLink Actions
+    window.addEventListener('message', function (e) {
+        if (e.data.message && e.data.message.action == "tabReply") {
+            console.log("alex: tabReply event", e.data.message)
+            if (e.data.message.data.data.node.chain == '_'){
+                console.log("alex: tronLink currently selects the main chain")
+            }else{
+                console.log("alex: tronLink currently selects the side chain")
+            }
+        }
+
+        if (e.data.message && e.data.message.action == "setAccount") {
+            console.log("alex: setAccount event", e.data.message)
+            console.log("alex: window.tronWeb ", window.tronWeb.defaultAddress.base58);
+            tron.account = window.tronWeb.defaultAddress.base58;
+            user.address = window.tronWeb.defaultAddress.base58;
+            updateHeadAddress();
+            
+        }
+        if (e.data.message && e.data.message.action == "setNode") {
+            console.log("alex: setNode event", e.data.message)
+            if (e.data.message.data.node.chain == '_'){
+                console.log("alex: tronLink currently selects the main chain")
+            }else{
+                console.log("alex: tronLink currently selects the side chain")
+            }
+
+        }
+    })
+
+    function setInvestAmount(amount_val){
+        amount += amount_val;
+        $("#join_trx").val(amount + '\xa0\xa0\xa0\xa0TRX');
+    }
+
+    function resetInvestAmount(){
+        amount = 0;
+        $("#join_trx").val(amount + '\xa0\xa0\xa0\xa0TRX');
+    }
+
+    var obj = setInterval(async ()=>{
+        console.log('alex: set interval', window.tronWeb); 
+        if (window.tronWeb && window.tronWeb.defaultAddress.base58) {
+            if(contractObj){
+                console.log('alex: update state');
+                updateInfo();
+                
+            }else{
+                       
+                tron.tronweb = window.tronWeb;
+                await loadMainContract();
+                tron.account = window.tronWeb.defaultAddress.base58;
+                user.address = window.tronWeb.defaultAddress.base58;
+
+                const res = await fetch('https://api.smartcontract.ru/gateway/rates_usd.json');
+                const data = await res.json()
+                rates = data.data;
+            }         
+        }else if(alertshowed == 0){
+          alert('Please Connect to Tron Link!');
+          jQuery("#status").fadeOut();
+          jQuery("#preloader").delay(350).fadeOut("slow");
+          alertshowed = 1;
+        }
+    }, 3000)
+
+    async function loadMainContract(){
+        try {
+            console.log('alex: contract address:', contractAddress)
+            contractObj = await tronWeb.contract().at(contractAddress);
+            console.log("alex: Contract = ", contractObj);
+            updateHeadAddress();
+            
+            jQuery("#status").fadeOut();
+            jQuery("#preloader").delay(350).fadeOut("slow");
+            
+            return 0;        
+
+        } catch (error) {
+            console.log("alex: Failed Get Contract = ", error);
+            return -1;
+        }
+    }
+
+    function updateInfo(){
+
+      window.tronWeb.trx.getBalance(contractAddress).then((balance) => {
+        contract.balance = parseInt(window.tronWeb.fromSun(balance))
+        contractBalance = parseInt(contract.balance * rates.trx)
+      })
+
+      window.tronWeb.trx.getBalance(tron.account).then((balance) => {
+        user.balance = parseInt(tronWeb.fromSun(balance));
+      })
+
+      contractObj
+        .contractInfo()
+        .call()
+        .then((res) => {
+          contract.total_users = parseInt(res._total_users)
+          contract.total_deposited = parseInt(
+            tronWeb.fromSun(res._total_deposited)
+          )
+          contract.total_withdraw = parseInt(
+            tronWeb.fromSun(res._total_withdraw)
+          )
+          contract.pool_last_draw = parseInt(res._pool_last_draw)
+          contract.pool_balance = parseInt(
+            tronWeb.fromSun(res._pool_balance)
+          )
+          contract.pool_lider = parseInt(tronWeb.fromSun(res._pool_lider))
+
+          console.log('alex contract = ', contract);
+        })
+
+      contractObj
+        .payoutOf(tron.account)
+        .call()
+        .then((res) => {
+          user.payout = parseInt(tronWeb.fromSun(res.payout))
+          if (user.payout > 1e60) user.payout = 0
+        })
+
+      contractObj
+        .userInfo(tron.account)
+        .call()
+        .then((res) => {
+          user.upline =
+            res.upline.substr(2) != '0000000000000000000000000000000000000000'
+              ? tronWeb.address.fromHex(res.upline)
+              : ''
+          user.deposit_time = parseInt(res.deposit_time)
+          user.deposit_amount = parseInt(
+            tronWeb.fromSun(res.deposit_amount)
+          )
+          user.payouts = parseInt(tronWeb.fromSun(res.payouts))
+          user.direct_bonus = parseInt(tronWeb.fromSun(res.direct_bonus))
+          user.pool_bonus = parseInt(tronWeb.fromSun(res.pool_bonus))
+          user.match_bonus = parseInt(tronWeb.fromSun(res.match_bonus))
+        })
+
+      contractObj
+        .userInfoTotals(tron.account)
+        .call()
+        .then((res) => {
+          user.referrals = parseInt(res.referrals)
+          user.total_deposits = parseInt(
+            tronWeb.fromSun(res.total_deposits)
+          )
+          user.total_payouts = parseInt(tronWeb.fromSun(res.total_payouts))
+          user.total_structure = parseInt(res.total_structure)
+
+          console.log('alex user = ', user);
+        })
+
+      updateHeadAddress();
+      $('#wallet_address').text('\xa0\xa0\xa0\xa0' + simpleAddress);
+
+      getNow();
+
+      $('#header_total_balance').text(contractBalance);
+      //contract info
+      $('#contract_info_address').text(simpleContractAddress);
+      $('#contract_info_address').html(simpleContractAddress);
+      $('#contract_info_balance').text(contractBalance);
+      $('#contract_info_total_deposited').text(contract.total_deposited + ' TRX');
+      $('#contract_info_contract_balance').text(contract.balance);
+      $('#contract_info_withdrawn_amount').text(contract.total_withdraw + ' TRX');
+      $('#contract_info_amount_daily').text(contract.pool_balance + ' TRX');
+      $('#contract_info_countdown_daily').text(0);
+      $('#contract_info_amount_muximum').text(contract.pool_lider);
+      $('#contract_info_reffered').text('---');
+
+      //personal static
+      $('#userdescc_address').text(simpleAddress);
+      $('#userdescc_countdown').text(timestamp);
+      $('#userdescc_limit_remain').text(user.deposit_amount * 2);
+      $('#userdescc_daily_income').text(0 + ' TRX');
+      $('#userdescc_referral_income').text(0 + ' TRX');
+      $('#userdescc_matching_bonus').text(user.pool_bonus + ' TRX');
+      $('#userdescc_sponsor_reward').text(0 + ' TRX');
+      $('#userdescc_withdrawn').text(0 + ' TRX');
+      $('#userdescc_un_withdrawn').text(0 + ' TRX');
+      
+      //static
+      $('#userdescc_total_deposited').text(user.total_deposits);
+      $('#userdescc_total_received').text(user.total_payouts);
+
+      //organization
+      $('#org_invitation_link').text(simpleUpline);
+      $('#org_invited_partners').text(user.referrals);
+      $('#org_total_partners').text(0);
+      $('#org_total_community').text(contract.total_users);
+    }
+    
+    function updateHeadAddress() {
+      simpleContractAddress =
+        contractAddress.slice(0, 6) +
+        '...' +
+        contractAddress.slice(34 - 5)
+      simpleAddress =
+        user['address']['slice'](0, 6) +
+        '...' +
+        user['address']['slice'](34 - 5)
+      simpleUpline =
+        user['upline']['slice'](0, 6) +
+        '...' +
+        user['upline']['slice'](34 - 5)
+      console.log('alex simpleUpline = ', simpleUpline);
+    }
+
+    function getNow() {
+      const now = Date.now()
+      const during = user.deposit_time + 86400000 * 10000 - now
+      const difference = Math.abs(during)
+      const day = Math.floor(difference / 86400000)
+      const hour = Math.floor((difference - day * 86400000) / 3600000)
+      const min = Math.floor(
+        (difference - day * 86400000 - hour * 3600000) / 60000
+      )
+      const sec = Math.floor(
+        (difference - day * 86400000 - hour * 3600000 - min * 60000) / 1000
+      )
+      timestamp =
+        user.deposit_time != 0 && during > 0
+          ? hour + ':' + min + ':' + sec
+          : '00:00:00'
+    }
+
+    function awaitTx(tx) {
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                resolve();
+            }, 8000);
+        });
+    }
+
+    function deposit() {
+      console.log('alex deposit')
+      if (!(amount >= 100)) 
+      {
+         alert('Need at least 100 TRX !') 
+         return;
+      } 
+
+      if (!tron.account)
+      {
+        console.log('alex: tron.account', tron.account);
+        alert('To join the project you need to use the Tron wallet. Read more href="https://etherchain.io/tutorial"')
+        return;
+      }
+
+      if (user.balance < amount)
+      {
+        alert('To join the project you need to have TRX in your wallet.<br/>If you just received funds to your wallet, wait 1 minute for network confirmation and try again')
+        return;
+      }
+       
+      if (user.amount > 0 && amount < user.deposit_amount)
+      {
+        alert('You are trying to make a deposit less than your last deposit<br/>Use an amount no less than the previous deposit')
+        return;
+      }
+
+      if (!upline) upline = 'TEDMxjavFv87TjnKiyN43yKgucJq5pR7yD'
+
+      console.log('alex deposit1')
+
+      console.log('alex contract = ', contractObj)
+
+      contractObj
+        .deposit(upline)
+        .send({
+          callValue: tronWeb.toSun(amount.toFixed(2)),
+        })
+        .then((tx) => {
+          alert('Transaction was successfully sent. Wait confirming..')
+          resetInvestAmount();
+          awaitTx(tx).then(() => {
+            console.log("alex:success transfer")
+            updateInfo();
+          })
+        })
+    }
+    
+/*
+    function withdraw() {
+      if (!tron.account)
+        return notice(
+          'To join the project you need to use the Tron wallet. Read more <a href: https://etherchain.io/tutorial/>here</a>',
+          'fb8c00'
+        )
+      if (
+        user.payout +
+          user.direct_bonus +
+          user.match_bonus +
+          user.pool_bonus <
+        0.01
+      )
+        return notice(
+          'To withdraw funds, wait when the amount of income exceeds 0.01 TRX (because of gas fee)',
+          'fb8c00'
+        )
+      if (user.payouts >= user.deposit_amount * 2)
+        return notice(
+          'You have reached the 200% limit<br/>To get income again make a new deposit',
+          'fb8c00'
+        )
+
+      getTronWeb().then((tronWeb) => {
+        contract
+          .withdraw()
+          .send()
+          .then((tx) => {
+            notice(
+              'Transaction was successfully sent. Wait confirming..',
+              '4caf50'
+            )
+            awaitTx(tx).then(() => {
+              updateInfo()
+            })
+          })
+      })
+    }*/
+
+</script>
+
+<body>
+    <!-- preloader Start -->
+    <!-- preloader Start -->
+    <div id="preloader">
+        <div id="status">
+            <img src="images/loader.png" id="preloader_image" alt="loader">
+        </div>
+    </div>
+    <!-- <div class="cursor"></div> -->
+    <!-- Top Scroll Start -->
+    <a href="javascript:" id="return-to-top"> <i class="fas fa-angle-double-up"></i></a>
+    <!-- Top Scroll End -->
+    <!-- cp navi wrapper Start -->
+     <nav class="cd-dropdown d-block d-sm-block d-md-block d-lg-none d-xl-none">
+        <h2><a href="#"> HPCommunity </a></h2>
+        <a href="#0" class="cd-close">Close</a>
+         <ul class="cd-dropdown-content">
+            <li>
+                <form class="cd-search">
+                    <input type="search" placeholder="Search...">
+                </form>
+            </li> 
+        </ul>
+        <!-- .cd-dropdown-content -->
+    </nav>
+    <div class="cp_navi_main_wrapper inner_header_wrapper float_left">
+        <div class="container-fluid">
+            
+            <div class="cp_logo_wrapper" style="display: none !important;">
+                <a>
+                    <img src="images/logo.png" alt="logo">
+                </a>
+            </div>
+            <!-- mobile menu area start -->
+            <!--
+            <header class="mobail_menu d-block d-sm-block d-md-block d-lg-none d-xl-none">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <div class="cd-dropdown-wrapper">
+                                <a class="house_toggle inner_toggle" href="#0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 31.177 31.177" style="enable-background:new 0 0 31.177 31.177;" xml:space="preserve" width="25px" height="25px">
+                                        <g>
+                                            <g>
+                                                <path class="menubar" d="M30.23,1.775H0.946c-0.489,0-0.887-0.398-0.887-0.888S0.457,0,0.946,0H30.23    c0.49,0,0.888,0.398,0.888,0.888S30.72,1.775,30.23,1.775z" fill="#004165" />
+                                            </g>
+                                            <g>
+                                                <path class="menubar" d="M30.23,9.126H12.069c-0.49,0-0.888-0.398-0.888-0.888c0-0.49,0.398-0.888,0.888-0.888H30.23    c0.49,0,0.888,0.397,0.888,0.888C31.118,8.729,30.72,9.126,30.23,9.126z" fill="#004165" />
+                                            </g>
+                                            <g>
+                                                <path class="menubar" d="M30.23,16.477H0.946c-0.489,0-0.887-0.398-0.887-0.888c0-0.49,0.398-0.888,0.887-0.888H30.23    c0.49,0,0.888,0.397,0.888,0.888C31.118,16.079,30.72,16.477,30.23,16.477z" fill="#004165" />
+                                            </g>
+                                            <g>
+                                                <path class="menubar" d="M30.23,23.826H12.069c-0.49,0-0.888-0.396-0.888-0.887c0-0.49,0.398-0.888,0.888-0.888H30.23    c0.49,0,0.888,0.397,0.888,0.888C31.118,23.43,30.72,23.826,30.23,23.826z" fill="#004165" />
+                                            </g>
+                                            <g>
+                                                <path class="menubar" d="M30.23,31.177H0.946c-0.489,0-0.887-0.396-0.887-0.887c0-0.49,0.398-0.888,0.887-0.888H30.23    c0.49,0,0.888,0.398,0.888,0.888C31.118,30.78,30.72,31.177,30.23,31.177z" fill="#004165" />
+                                            </g>
+                                        </g>
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>-->
+            <!-- mobile menu area end -->
+            <div class="cp_navigation_wrapper main_top_wrapper">
+                    <i class="fab fas fa-wallet" id="wallet_address" style="margin-top:23px"></i>
+                <!-- mainmenu end -->
+            </div>
+            <div class="top_header_right_wrapper">
+                <div class="social_link_foter">
+                     <ul>             
+                        <li><a href="https://t.me/joinchat/HZvxV7XdTQC8rtek" target="_blank"><i class="fab fa-twitter"></i></a></li>
+                        <li><a href="images/whitepaper.pdf" download><i class="fab fas fa-book"></i></a></li>
+                        <li><a href="https://youtu.be/NRFn7WKRWZo" target="_blank"><i class="fab fa-youtube"></i></a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- navi wrapper End -->
+    <!--investment plan wrapper start -->
+    <div class="sv_pricing_paln float_left">
+        <div class="container fixed_portion" >
+            <div class="bg-animation">
+                <img class="zoom-fade" src="images/pattern.png" alt="img" style="width: 100%">
+            </div>
+            <div class="row">
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <img src="images/mark.png" alt="img" class="img-responsive">
+                    <div class="sv_heading_wraper heading_wrapper_dark dark_heading">
+                        <h4> OPEN TO ALL, TRANSPARENT TO ALL</h4>
+                        <h3> A FFINANCIAL SYSTEM BUILT ON SMART CONTRACT TECHNOLOGY </h3>
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="sv_heading_wraper heading_wrapper_dark dark_heading">
+                        <h4> Total Balance</h4>
+                        <h3 id = "header_total_balance">0</h3>
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="investment_box_wrapper index2_investment_box_Wraper float_left">
+                        <div class="investment_icon_circle icon_color parpal_color">
+                            <i class="flaticon-bar-chart"></i>
+                        </div>
+                        <div class="investment_border_wrapper"></div>
+                        <div class="investment_content_wrapper">
+                            <h1><a href="#">JOIN</a></h1>
+                            <div class="line_shape investment_line_shape"></div>
+							<label></label>
+							<label></label>
+							<div class="change_field">
+                                <input type="text" placeholder="0   TRX" id="join_trx" readonly>
+							</div>
+                        </div>
+                        <div class="row">
+	                        <div class="about_btn text-center col-md-6 col-lg-6 col-sm-12 col-12 blue_btn_plans" style=" margin-top: 30px;">
+		                    	<a onclick="setInvestAmount(100)" style="padding: 13px 105px; float: none;">+100 TRX</a>
+		                    </div>
+		                    <div class="about_btn text-center col-md-6 col-lg-6 col-sm-12 col-12 red_btn_plans" style=" margin-top: 30px;">
+		                    	<a onclick="setInvestAmount(500)" style="padding: 13px 105px; float: none;">+500 TRX</a>
+		                    </div>
+                        </div>
+                        <div class="row">
+	                        <div class="about_btn text-center col-md-6 col-lg-6 col-sm-12 col-12 red_btn_plans" style=" margin-top: 30px;">
+		                    	<a onclick="setInvestAmount(1000)" style="padding: 13px 105px; float: none;">+1000 TRX</a>
+		                    </div>
+		                    <div class="about_btn text-center col-md-6 col-lg-6 col-sm-12 col-12 blue_btn_plans" style=" margin-top: 30px;">
+		                    	<a onclick="setInvestAmount(5000)" style="padding: 13px 105px; float: none;">+5000 TRX</a>
+		                    </div>
+                        </div>
+                        <div class="header_btn index2_header_btn" style=" margin-top: 50px;">
+		                    <ul>
+		                        <li>
+		                            <a onclick="resetInvestAmount()"> Reset </a> </li>
+		                        <li>
+		                            <a onclick="deposit()"> Join </a> </li>
+		                    </ul>
+		                </div>
+
+                    </div>
+                </div>
+
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="sv_heading_wraper heading_wrapper_dark dark_heading">
+                    </div>
+                </div>
+
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="investment_box_wrapper index2_investment_box_Wraper float_left">
+                        <div class="investment_icon_circle icon_color blue_icon_circle">
+                            <i class="flaticon-money"></i>
+                        </div>
+                        <div class="investment_border_wrapper"></div>
+                        <div class="investment_content_wrapper">
+                            <h1><a href="#">Smart Contract Info</a></h1>
+                            <div class="line_shape investment_line_shape"></div>
+                            <label style=" margin-top: 30px;"></label>
+		                    <dl class="userdescc">
+		                        <dt>Contract Address</dt>
+		                        <dd id="contract_info_address">---</dd>
+		                        <dt>Balance</dt>
+		                        <dd id="contract_info_balance">0 $</dd>
+		                        <dt>Total TRX Deposits</dt>
+		                        <dd id = "contract_info_total_deposited">0 TRX</dd>
+		                        <dt>Contract Balance</dt>
+		                        <dd id = "contract_info_contract_balance">0</dd>
+		                        <dt>Amount Withdrawn</dt>
+		                        <dd id = "contract_info_withdrawn_amount">0 TRX</dd>
+		                        <dt>Amount In The Daily Pool</dt>
+		                        <dd id = "contract_info_amount_daily">0 TRX</dd>
+		                        <dt>Daily Pool Countdown</dt>
+		                        <dd id = "contract_info_countdown_daily">0 TRX</dd>
+		                        <dt>Maximum Amount</dt>
+		                        <dd id = "contract_info_amount_muximum">0</dd>
+		                        <dt>Reffered By</dt>
+		                        <dd id = "contract_info_reffered">---</dd>
+		                    </dl>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="sv_heading_wraper heading_wrapper_dark dark_heading">
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="investment_box_wrapper index2_investment_box_Wraper float_left">
+                        <div class="investment_icon_circle icon_color red_info_circle">
+                            <i class="flaticon-gold"></i>
+                        </div>
+                        <div class="investment_border_wrapper"></div>
+                        <div class="investment_content_wrapper">
+                            <h1><a href="#">Insurance</a></h1>
+                            <div class="line_shape investment_line_shape"></div>
+                            <label style=" margin-top: 30px;"></label>
+		                    <dl class="userdescc">
+		                        <dt>Contract Address</dt>
+		                        <dd>TNNx...hw</dd>
+		                        <dt>Balance</dt>
+		                        <dd>0</dd>
+		                    </dl>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="sv_heading_wraper heading_wrapper_dark dark_heading">
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="investment_box_wrapper index2_investment_box_Wraper float_left height_box">
+                        <div class="investment_icon_circle icon_color green_info_circle">
+                            <i class="flaticon-user"></i>
+                        </div>
+                        <div class="investment_border_wrapper"></div>
+                        <div class="investment_content_wrapper">
+                            <h1><a href="#">PERSONAL STATISTIC</a></h1>
+                            <div class="line_shape investment_line_shape"></div>
+                            <label style=" margin-top: 30px;"></label>
+		                    <dl class="userdescc">
+		                        <dt>Address</dt>
+		                        <dd id='userdescc_address'>TYKQvm...kMGDQ</dd>
+		                        <dt>Next Income</dt>
+		                        <dd id='userdescc_countdown'>00:00:00</dd>
+		                        <dt>240% Income Limit Remain</dt>
+		                        <dd id='userdescc_limit_remain'>0</dd>
+		                        <dt>Daily 2%~5% Income</dt>
+		                        <dd id='userdescc_daily_income'>0 TRX</dd>
+		                        <dt>Direct Referral</dt>
+		                        <dd id='userdescc_referral_income'>0 TRX</dd>
+		                        <dt>Matching Bonus 10%</dt>
+		                        <dd id='userdescc_matching_bonus'>0 TRX</dd>
+		                        <dt>TOP Sponsor Rewards</dt>
+		                        <dd id='userdescc_sponsor_reward'>0 TRX</dd>
+		                        <dt>Income Withdrawn</dt>
+		                        <dd id='userdescc_withdrawn'>0 TRX</dd>
+		                        <dt>Unwithdrawn Income</dt>
+		                        <dd id='userdescc_un_withdrawn'>0 TRX</dd>
+		                    </dl>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="sv_heading_wraper heading_wrapper_dark dark_heading">
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="investment_box_wrapper index2_investment_box_Wraper float_left">
+                        <div class="investment_icon_circle icon_color red_info_circle">
+                            <i class="flaticon-gold"></i>
+                        </div>
+                        <div class="investment_border_wrapper"></div>
+                        <div class="investment_content_wrapper">
+                            <h1><a href="#">STATICS</a></h1>
+                            <div class="line_shape investment_line_shape"></div>
+                            <label style=" margin-top: 30px;"></label>
+		                    <dl class="userdescc">
+		                        <dt>Total Deposited TRX</dt>
+		                        <dd id='userdescc_total_deposited'>0</dd>
+		                        <dt>Total Received TRX</dt>
+		                        <dd id='userdescc_total_received'>0</dd>
+		                    </dl>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-12 col-sm-12 col-12">
+                    <div class="investment_box_wrapper index2_investment_box_Wraper float_left height_box">
+                        <div class="investment_icon_circle icon_color green_info_circle">
+                            <i class="flaticon-medal"></i>
+                        </div>
+                        <div class="investment_border_wrapper"></div>
+                        <div class="investment_content_wrapper">
+                            <h1><a href="#">ORGANIZATION</a></h1>
+                            <div class="line_shape investment_line_shape"></div>
+                            <label style=" margin-top: 30px;"></label>
+		                    <dl class="userdescc">
+		                        <dt>Invitation Link</dt>
+		                        <dd id='org_invitation_link'>---</dd>
+		                        <dt>Personal Invited Partners</dt>
+		                        <dd id='org_invited_partners'>0</dd>
+		                        <dt>Total Number Of Partners</dt>
+		                        <dd id='org_total_partners'>0</dd>
+		                        <dt>Total Community Participants</dt>
+		                        <dd id='org_total_community'>138375</dd>
+		                    </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!--investment plan wrapper end -->
+    <!--custom js files-->
+    <script src="js/jquery-3.3.1.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="js/modernizr.js"></script>
+    <script src="js/jquery.menu-aim.js"></script>
+    <script src="js/plugin.js"></script>
+    <script src="js/jquery.countTo.js"></script>
+	<script src="js/dropify.min.js"></script>
+    <script src="js/jquery.inview.min.js"></script>
+	 <script src="js/datatables.js"></script>
+    <script src="js/jquery.nice-select.min.js"></script>
+    <script src="js/jquery.magnific-popup.js"></script>
+    <script src="js/owl.carousel.js"></script>
+    <script src="js/calculator.js"></script>
+    <script src="js/custom.js"></script>
+    <script src="js/contract.js"></script>
+    <!-- custom js-->
+
+</body>
+
+</html>
