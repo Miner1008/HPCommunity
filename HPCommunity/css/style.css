@@ -5081,8 +5081,10 @@ dl.userdescc dd{
   background: #111111;
 }
 .payment_gateway_wrapper{
-  float:right;
-  display:inline-block;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  justify-content: center;
 }
 
 .payment_gateway_wrapper .nice-select{
